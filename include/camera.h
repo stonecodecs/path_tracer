@@ -25,10 +25,11 @@ std::vector<std::string> split(const std::string str, const std::string& delimit
 
 class Camera {
   public: 
-    double aspect_ratio = 1.0;
+    double aspect_ratio = 1.0; // width / height ratio
     int max_depth = 10; // max depth for recursive ray_color function
     int image_width = 100;
-    int samples_per_pixel = 10;
+    int samples_per_pixel = 10; // random samples for each pixel
+    Color background; // background color
 
     double fovy = 90;
     point4 lookfrom = point4(0,0,0);
@@ -51,6 +52,9 @@ class Camera {
               for (int i = 0; i < image_width; i++) {
                   Color pixel_color(0,0,0); // to be filled
                   
+                  #ifdef DEBUG_MODE
+                    std::cout << "(" << i << ", " << j << ")\n"; // pixel
+                  #endif
                   for (int sample = 0; sample < samples_per_pixel; sample++) {
                     Ray r = get_ray(i, j);
                     pixel_color += ray_color(r, max_depth, world);
@@ -80,7 +84,7 @@ class Camera {
 
     void initialize() {
         // Image dim
-        std::vector<int> resolution = calculate_res("16:9", image_width); // 1280x720
+        std::vector<int> resolution = calculate_res(aspect_ratio, image_width); // 1280x720
         image_width = resolution[0]; 
         image_height = resolution[1];
         center = lookfrom;
@@ -110,15 +114,21 @@ class Camera {
     }
 
 
-    std::vector<int> calculate_res(const std::string& aspect, int width) {
-        std::vector<double> ratios(2);
-        std::vector<std::string> xy = split(aspect, ":");
-        ratios[0] = std::stoi(xy[0]);
-        ratios[1] = std::stoi(xy[1]);
-        auto aspect_ratio = ratios[0] / ratios[1];
+    // std::vector<int> calculate_res(const std::string& aspect, int width) {
+    //     std::vector<double> ratios(2);
+    //     std::vector<std::string> xy = split(aspect, ":");
+    //     ratios[0] = std::stoi(xy[0]);
+    //     ratios[1] = std::stoi(xy[1]);
+    //     auto aspect_ratio = ratios[0] / ratios[1];
+    //     int image_height = int(width / aspect_ratio);
+    //     image_height = (image_height < 1) ? 1 : image_height;
+
+    //     return std::vector<int>{width, image_height};
+    // }
+
+    std::vector<int> calculate_res(const double aspect_ratio, int width) {
         int image_height = int(width / aspect_ratio);
         image_height = (image_height < 1) ? 1 : image_height;
-
         return std::vector<int>{width, image_height};
     }
 
@@ -151,23 +161,33 @@ class Camera {
         Hit rec;
         // 0.001 on the interval to prevent "shadow acne"
         // where numerical approximations cause intersection error
-        if (world.hit(r, Interval(0.001, infinity), rec)) {
-            Ray scattered;
-            Color attenuation;
-
-            if (rec.mat->scatter(r, rec, attenuation, scattered)) {
-              return attenuation * ray_color(scattered, depth - 1, world);
-            }
-            return Color(0,0,0);
-            // vec4 direction = random_on_hemisphere(rec.normal); // uniform scattering
-            //vec4 direction = rec.normal + random_unit_vector(); // Lambertian
-            // 0.5 for 50% diffuse (1.0 is white, 0.0 is black)
-            // return reflectance * ray_color(Ray(rec.p, direction), depth - 1, world);
+        if (!world.hit(r, Interval(0.001, infinity), rec)) {
+          return background;
         }
 
-        vec4 unit_direction = unit_vector(r.d());
-        auto a = 0.5*(unit_direction.y() + 1.0);
-        return (1.0-a)*Color(1.0, 1.0, 1.0) + a*Color(0.5, 0.7, 1.0);
+        #ifdef DEBUG_MODE
+          std::cout << "HIT: " << rec.p << " || NORMAL: " << rec.normal << "\n";
+        #endif
+
+        Ray scattered;
+        Color attenuation;
+        Color color_from_emission = rec.mat->emitted(rec.u, rec.v, rec.p);
+
+        // if ray produces a valid reflecting ray
+        if (!rec.mat->scatter(r, rec, attenuation, scattered)) {
+          // if material does not scatter (gets fully absorbed)
+          return color_from_emission;
+        }
+        // emission is (0,0,0) if material is not emissive
+        // recursively color ray from multiple scatters based on 'max_depth'
+        Color color_from_scatter = attenuation * ray_color(scattered, depth - 1, world);
+        return color_from_emission + color_from_scatter;
+
+        // vec4 direction = random_on_hemisphere(rec.normal); // uniform scattering
+        //vec4 direction = rec.normal + random_unit_vector(); // Lambertian
+        // 0.5 for 50% diffuse (1.0 is white, 0.0 is black)
+        // return reflectance * ray_color(Ray(rec.p, direction), depth - 1, world);
+
     }
 };
 

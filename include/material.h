@@ -1,11 +1,16 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
+#include "texture.h"
 #include "hittable.h"
 
 class Material {
     public:
         virtual ~Material() = default;
+        virtual Color emitted(double u, double v, const point4& p) const {
+            return Color(0,0,0); // black in the case for non-emitting materials
+        } // u,v tuxture coordinates and 3D position 
+        // scatter is the reflecting ray from hit point
         virtual bool scatter(
             const Ray& r_in,
             const Hit& rec,
@@ -16,15 +21,20 @@ class Material {
 
 class Lambertian : public Material {
     public:
-        Lambertian(const Color& albedo) : albedo(albedo) {}
+        Lambertian(const Color& albedo) : tex(make_shared<SolidColor>(albedo)) {}
+        Lambertian(shared_ptr<Texture> tex) : tex(tex) {}
         bool scatter(
-            const Ray& r_in,
-            const Hit& rec,
-            Color& attenuation,
+            const Ray& r_in, // ray going in
+            const Hit& rec,  // store hit record data
+            Color& attenuation, // fraction of light absorbed by material during scattering
             Ray& scattered)
             const override
         {
             auto scatter_dir = rec.normal + random_unit_vector();
+            #ifdef DEBUG_MODE
+                // std::cout << "Lambertian::scatter::direction(" << scatter_dir << ")\n";
+                std::cout << "Lambertian::scatter::magnitude(" << scatter_dir.norm() << ")\n";
+            #endif
             if (scatter_dir.near_zero()) {
                 // if scatter direction is exactly opposite of the normal
                 // then it sums to 0, leading to zero scatter direction
@@ -32,16 +42,21 @@ class Lambertian : public Material {
                 scatter_dir = rec.normal;
             }
             scattered = Ray(rec.p, scatter_dir, r_in.time());
-            attenuation = albedo;
+            attenuation = tex->value(rec.u, rec.v, rec.p);
+            // std::cout << "atten (" << attenuation << ")\n";
             return true;
         }
     private:
-        Color albedo;
+        // Color albedo;
+        shared_ptr<Texture> tex;
 };
 
 class Metal : public Material {
     public: 
         Metal(const Color& albedo, double fuzz) : albedo(albedo), fuzz(fuzz < 1 ? fuzz : 1) {}
+        // 'scatter'defines how an incoming ray interacts with material to produce outgoing ray
+        // if diffuse, this is somewhat random, and if 1.0 albedo, fully reflects.
+        // 'attenuation' is the scaling factor of light's intensity
         bool scatter(
                 const Ray& r_in,
                 const Hit& rec,
@@ -51,7 +66,7 @@ class Metal : public Material {
             {
                 vec4 reflected = reflect(r_in.d(), rec.normal);
                 reflected = unit_vector(reflected) + (fuzz * random_unit_vector());
-                scattered = Ray(rec.p, reflected, r_in.time());
+                scattered = Ray(rec.p, reflected, r_in.time()); // hit point to outgoing ray
                 attenuation = albedo;
                 return (dot(scattered.d(), rec.normal) > 0);
             }
@@ -100,7 +115,34 @@ class Dielectric : public Material {
             r0 = r0 * r0;
             return r0 + (1 - r0) * std::pow((1 - cosine), 5);
         }
+};
 
+class DiffuseLight : public Material {
+    public:
+        DiffuseLight(shared_ptr<Texture> tex) : tex(tex) {}
+        DiffuseLight(const Color& emit) : tex(make_shared<SolidColor>(emit)) {}
+
+        Color emitted(double u, double v, const point4& p) const override {
+            return tex->value(u,v,p);
+        }
+
+    private:
+        shared_ptr<Texture> tex;
+};
+
+class Isotropic : public Material {
+    public:
+        Isotropic(const Color& albedo) : tex(make_shared<SolidColor>(albedo)) {}
+        Isotropic(shared_ptr<Texture> albedo) : tex(tex) {}
+
+        bool scatter(const Ray& r_in, const Hit& rec, Color& attenuation, Ray& scattered) const override {
+            // scatter in a random direction
+            scattered = Ray(rec.p, random_unit_vector(), r_in.time());
+            attenuation = tex->value(rec.u, rec.v, rec.p);
+            return true;
+        }
+    private:
+        shared_ptr<Texture> tex;
 };
 
 #endif

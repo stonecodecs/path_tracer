@@ -45,23 +45,34 @@ class Sphere : public Hittable {
                     return false;
             }
 
+            // fill out hit record
             rec.t = root;
             rec.p = r.at(rec.t);
             // normal unit vec from center sphere to hit point
             vec4 normal_out = (rec.p - current_center) / radius;
             rec.mat = mat;
             rec.set_face_normal(r, normal_out);
-
+            get_sphere_uv(normal_out, rec.u, rec.v);
             return true;
         }
 
         AABB bounding_box() const override { return bbox; }
     private:
-    //point4 center;
-    Ray center;
-    double radius;
-    shared_ptr<Material> mat;
-    AABB bbox;
+        //point4 center;
+        Ray center;
+        double radius;
+        shared_ptr<Material> mat;
+        AABB bbox;
+
+        static void get_sphere_uv(const point4& p, double& u, double& v) {
+            // p: point on unit sphere 
+            // u,v: normalized [0,1] mapping from spherical coords
+
+            auto theta = std::acos(-p.y());
+            auto phi = std::atan2(-p.z(), p.x()) + pi;
+            u = phi / (2 * pi);
+            v = theta / pi;
+        }
 };
 
 #endif

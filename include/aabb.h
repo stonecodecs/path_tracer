@@ -13,14 +13,18 @@ class AABB {
         Interval x, y, z; // these are all (+inf, -inf) from interval.h
         AABB() {}
         AABB(const Interval& x, const Interval& y, const Interval& z) :
-        x(x), y(y), z(z) {}
+        x(x), y(y), z(z) {
+            pad_to_minimums();
+        }
         AABB(const point4& a, const point4& b) {
             // 2 corners of the bounding box that fully define the interval
             x = (a[0] <= b[0]) ? Interval(a[0], b[0]) : Interval(b[0], a[0]);
             y = (a[1] <= b[1]) ? Interval(a[1], b[1]) : Interval(b[1], a[1]);
             z = (a[2] <= b[2]) ? Interval(a[2], b[2]) : Interval(b[2], a[2]);
+            pad_to_minimums();
         }
         AABB(const AABB& boxA, const AABB& boxB) {
+            // each interval is min, max (determined inside Interval constructor)
             x = Interval(boxA.x, boxB.x);
             y = Interval(boxA.y, boxB.y);
             z = Interval(boxA.z, boxB.z);
@@ -65,9 +69,27 @@ class AABB {
         }
 
         static const AABB empty, universe;
+    private:
+
+        void pad_to_minimums() {
+            // adjust AABB such that no side is narrower than some delta
+            double delta = 0.0001;
+            if (x.size() < delta) x = x.expand(delta);
+            if (y.size() < delta) y = y.expand(delta);
+            if (z.size() < delta) z = z.expand(delta);
+        }
 };
 
 const AABB AABB::empty = AABB(Interval::empty, Interval::empty, Interval::empty);
 const AABB AABB::universe = AABB(Interval::universe, Interval::universe, Interval::universe);
+
+// for Translate
+AABB operator+(const AABB& bbox, const vec4& offset) {
+    return AABB(bbox.x + offset.x(), bbox.y + offset.y(), bbox.z + offset.z()); 
+}
+
+AABB operator+(const vec4& offset, const AABB& bbox) {
+    return bbox + offset;
+}
 
 #endif

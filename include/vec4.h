@@ -3,8 +3,6 @@
 
 #include "rtweekend.h"
 
-const double EPSILON = 1e-160;
-
 class vec4 {
   public:
     double e[4];
@@ -52,7 +50,7 @@ class vec4 {
 
     bool near_zero() const {
         double s = 1e-8;
-        return (std::fabs(e[0] < s) && std::fabs(e[1] < s) && std::fabs(e[2] < s));
+        return (std::fabs(e[0]) < s && std::fabs(e[1]) < s && std::fabs(e[2]) < s);
     }
 
     static vec4 random() {
@@ -157,9 +155,9 @@ inline vec4 random_in_unit_disk() {
 
 inline vec4 random_unit_vector() {
     while (true) { // keep sampling until valid gen'd vector
-        vec4 p = vec4::random(-1, 1);
+        auto p = vec4::random(-1, 1);
         auto pnorm2 = p.norm2();
-        if (EPSILON < pnorm2 && pnorm2 <= 1) {
+        if (1e-160 < pnorm2 && pnorm2 <= 1) {
             // if inside unit sphere
             // AND preventing underflow near center of sphere
             return p / sqrt(pnorm2); // normalize
