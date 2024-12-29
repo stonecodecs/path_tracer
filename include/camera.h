@@ -3,6 +3,7 @@
 
 #include "rtweekend.h"
 #include "material.h"
+#include "pdf.h"
 #include <fstream>
 #include <../src/part1/ppm2png.cpp>
 
@@ -39,7 +40,7 @@ class Camera {
     double defocus_angle = 0; // variation angle of rays through each pixel
     double focus_dist = 10; // distance from cam center to perfect focus plane
 
-    void render(const Hittable& world) {
+    void render(const Hittable& world, const Hittable& lights) {
         initialize();
         std::ofstream output_file(OUT_FILENAME + ".ppm");
 
@@ -55,11 +56,20 @@ class Camera {
                   #ifdef DEBUG_MODE
                     std::cout << "(" << i << ", " << j << ")\n"; // pixel
                   #endif
-                  for (int sample = 0; sample < samples_per_pixel; sample++) {
-                    Ray r = get_ray(i, j);
-                    pixel_color += ray_color(r, max_depth, world);
+
+                  // for (int sample = 0; sample < samples_per_pixel; sample++) {
+                  //   Ray r = get_ray(i, j);
+                  //   pixel_color += ray_color(r, max_depth, world);
+                  // }
+
+                  for (int s_j = 0; s_j < sqrt_spp; s_j++) { // sample j cell
+                    for (int s_i = 0; s_i < sqrt_spp; s_i++) {
+                      Ray r = get_ray(i, j, s_i, s_j);
+                      pixel_color += ray_color(r, max_depth, world, lights);
+                    } 
                   }
-                  pixel_color *= (1.0 / samples_per_pixel);
+
+                  pixel_color *= pixel_samples_scale;
                   write_color(output_file, pixel_color);
               }
           }
@@ -76,6 +86,9 @@ class Camera {
     int image_height;
     point4 center;
     point4 pixel00_loc;
+    int sqrt_spp; // sqrt of # of samples per pixel
+    double recip_sqrt_spp; // 1 / sqrt_spp; avoid unneccssary calc
+    double pixel_samples_scale;
     vec4 pixel_delta_u;
     vec4 pixel_delta_v;
     vec4 u, v, w; // camera frame basis vectors
@@ -87,6 +100,9 @@ class Camera {
         std::vector<int> resolution = calculate_res(aspect_ratio, image_width); // 1280x720
         image_width = resolution[0]; 
         image_height = resolution[1];
+        sqrt_spp = int(std::sqrt(samples_per_pixel));
+        recip_sqrt_spp = 1.0 / sqrt_spp;
+        pixel_samples_scale = 1.0 / (sqrt_spp * sqrt_spp);
         center = lookfrom;
         // double focal_length = (lookfrom - lookat).norm();
         auto theta = degrees_to_radians(fovy);
@@ -137,6 +153,14 @@ class Camera {
       return vec4(gen_random_double() - 0.5, gen_random_double() - 0.5, 0);
     }
 
+    vec4 sample_square_stratified(int s_i, int s_j) const {
+      // return vector to sampled point in square s_i, s_j
+      auto px = ((s_i + gen_random_double()) * recip_sqrt_spp) - 0.5;
+      auto py = ((s_j + gen_random_double()) * recip_sqrt_spp) - 0.5;
+
+      return vec4(px,py,0);
+    }
+
     point4 defocus_disk_sample() const {
       auto p = random_in_unit_disk();
       return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
@@ -144,7 +168,9 @@ class Camera {
 
     Ray get_ray(int i, int j) const {
       // creates camera rays towards pixel (i,j)
+      // direct at randomly sampled stratified square near i,j: s_i, s_j
       auto offset = sample_square();
+    
       auto pixel_sample = pixel00_loc
                         + ((i + offset.x()) * pixel_delta_u)
                         + ((j + offset.y()) * pixel_delta_v);
@@ -155,7 +181,22 @@ class Camera {
       return Ray(ray_orig, ray_dir, ray_time);
     }
 
-    Color ray_color(const Ray& r, int depth, const Hittable& world) const {
+    Ray get_ray(int i, int j, int s_i, int s_j) const {
+      // creates camera rays towards pixel (i,j)
+      // direct at randomly sampled stratified square near i,j: s_i, s_j
+      // auto offset = sample_square();
+      auto offset = sample_square_stratified(s_i, s_j);
+      auto pixel_sample = pixel00_loc
+                        + ((i + offset.x()) * pixel_delta_u)
+                        + ((j + offset.y()) * pixel_delta_v);
+
+      auto ray_orig = (defocus_angle <= 0) ? center : defocus_disk_sample();
+      auto ray_dir  = pixel_sample - ray_orig;
+      auto ray_time = gen_random_double();
+      return Ray(ray_orig, ray_dir, ray_time);
+    }
+
+    Color ray_color(const Ray& r, int depth, const Hittable& world, const Hittable& lights) const {
         if (depth <= 0) return Color(0,0,0);
 
         Hit rec;
@@ -169,18 +210,66 @@ class Camera {
           std::cout << "HIT: " << rec.p << " || NORMAL: " << rec.normal << "\n";
         #endif
 
-        Ray scattered;
-        Color attenuation;
-        Color color_from_emission = rec.mat->emitted(rec.u, rec.v, rec.p);
+        // Ray scattered;      // scatter direction from hit point
+        // Color attenuation;  // based on material properties
+        // double pdf_value;   // importance sampling weighting term
+        ScatterRecord srec;
+        Color color_from_emission = rec.mat->emitted(r, rec, rec.u, rec.v, rec.p);
 
         // if ray produces a valid reflecting ray
-        if (!rec.mat->scatter(r, rec, attenuation, scattered)) {
+        if (!rec.mat->scatter(r, rec, srec)) {
           // if material does not scatter (gets fully absorbed)
           return color_from_emission;
         }
+
+        if (srec.skip_pdf) { // specular materials
+            return srec.attenuation * ray_color(srec.skip_pdf_ray, depth - 1, world, lights);
+        }
+
+        // for light sampling
+        auto light_ptr = make_shared<HittablePDF>(lights, rec.p);
+        MixturePDF mixed_pdf(light_ptr, srec.pdf_ptr); // along with material
+
+        Ray scattered = Ray(rec.p, mixed_pdf.generate(), r.time());
+        auto pdf_value = mixed_pdf.value(scattered.d());
+
+        // HittablePDF light_pdf(lights, rec.p);
+        // scattered = Ray(rec.p, light_pdf.generate(), r.time());
+        // pdf_value = light_pdf.value(scattered.d());
+
+        // CosinePDF surface_pdf(rec.normal); // based on the normal
+        // scattered = Ray(rec.p, surface_pdf.generate(), r.time());
+        // pdf_value = surface_pdf.value(scattered.d());
+
+        // test (IS) code (hardcoded)
+        // auto on_light = point4(gen_random_double(213,343), 554, gen_random_double(227,332));
+        // auto to_light = on_light - rec.p;
+        // double distance_squared = to_light.norm2();
+        // to_light = unit_vector(to_light);
+
+        // // surface normal is opposite to light source, no scatter
+        // if (dot(to_light, rec.normal) < 0) {
+        //   return color_from_emission;
+        // }
+
+        // double light_area = (343-213)*(332-227);
+        // auto light_cosine = std::fabs(to_light.y()); // get y component (relative to ONB of surface)
+      
+        // if (light_cosine < 0.00001) {
+        //   return color_from_emission;
+        // }
+
+        // // of outgoing ray direction
+        // pdf_value = distance_squared / (light_cosine * light_area);
+        // scattered = Ray(rec.p, to_light, r.time());
+
+        // of scatter function (based on material)
+        double scattering_pdf = rec.mat->scattering_pdf(r, rec, scattered);
+        // pdf_value = scattering_pdf;
+
         // emission is (0,0,0) if material is not emissive
         // recursively color ray from multiple scatters based on 'max_depth'
-        Color color_from_scatter = attenuation * ray_color(scattered, depth - 1, world);
+        Color color_from_scatter = (srec.attenuation * scattering_pdf * ray_color(scattered, depth - 1, world, lights)) / pdf_value;
         return color_from_emission + color_from_scatter;
 
         // vec4 direction = random_on_hemisphere(rec.normal); // uniform scattering

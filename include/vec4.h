@@ -169,7 +169,20 @@ inline vec4 random_unit_vector() {
     // However, since some parts of the cube surronding it are 
     // just touching the sphere and some have lots of space (corners)
     // the distribution would no longer be uniform.
+}
 
+inline vec4 random_cosine_direction() {
+    double r1 = gen_random_double();
+    double r2 = gen_random_double();
+    // using inverse transform sampling
+
+    double phi = 2 * pi * r1;
+    double sqrt_r2 = std::sqrt(r2);
+    double x = std::cos(phi) * sqrt_r2;
+    double y = std::sin(phi) * sqrt_r2;
+    double z = std::sqrt(1 - r2);
+    
+    return vec4(x,y,z);
 }
 
 inline vec4 random_on_hemisphere(const vec4& normal) {

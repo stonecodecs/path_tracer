@@ -43,6 +43,24 @@ class HittableList : public Hittable {
 
     AABB bounding_box() const override { return bbox; }
 
+    double pdf_value(const point4& origin, const vec4& dir) const override {
+        auto weight = 1.0 / objects.size();
+        auto sum = 0.0;
+
+        // linear combination of PDFs == mixture-density
+        for (const auto& obj : objects) {
+            sum += weight * obj->pdf_value(origin, dir);
+        }
+
+        return sum;
+    }
+
+    vec4 random(const point4& origin) const override {
+        auto int_size = int(objects.size());
+        // random ray from random object
+        return objects[gen_random_int(0, int_size - 1)]->random(origin);
+    }
+
     private:
         AABB bbox; // scene content bbox (if miss, doesn't check anything else)
 };

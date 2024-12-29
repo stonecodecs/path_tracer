@@ -29,7 +29,7 @@ inline double degrees_to_radians(double degrees) {
     return degrees * pi / 180.0;
 }
 
-inline double gen_random_double() {
+inline double gen_random_double() { // this is uniform
     // returns random real # in [0, 1)
     return std::rand() / (RAND_MAX + 1.0);
 }

@@ -37,6 +37,12 @@ class Hittable {
             Interval Ray_t,
             Hit& hit_record) const = 0;
         virtual AABB bounding_box() const = 0;
+        virtual double pdf_value(const point4& origin, const vec4& dir) const {
+            return 0.0;
+        }
+        virtual vec4 random(const point4& origin) const {
+            return vec4(1,0,0);
+        }
 };
 
 class Translate : public Hittable {

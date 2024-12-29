@@ -13,6 +13,7 @@ class Quad : public Hittable {
         normal = unit_vector(n); // normal of plane (quad)
         D = dot(normal, Q); // Q lies on plane, which is enough to solve for D
         w = n / dot(n, n); // unit normal
+        area = n.norm(); // remember: norm of cross product(u,v) = area
         set_bounding_box();
     }
 
@@ -26,6 +27,22 @@ class Quad : public Hittable {
     }
 
     AABB bounding_box() const override { return bbox; }
+
+    double pdf_value(const point4& origin, const vec4& dir) const override {
+        Hit rec;
+        if (!this->hit(Ray(origin, dir), Interval(0.001, infinity), rec)) {
+            return 0.0; // no intersection
+        }
+        auto distance_squared = rec.t * rec.t * dir.norm2();
+        auto cosine = std::fabs(dot(dir, rec.normal) / dir.norm());
+
+        return distance_squared / (cosine * area);
+    }
+
+    vec4 random(const point4& origin) const override {
+        auto p = Q + (gen_random_double() * u) + (gen_random_double() * v);
+        return p - origin; // random sample any part of the quad
+    }
 
     bool hit(const Ray& r, Interval ray_t, Hit& rec) const override {
         auto denom = dot(normal, r.d());
@@ -73,6 +90,7 @@ class Quad : public Hittable {
     AABB bbox;
     vec4 normal;
     double D;
+    double area;
 };
 
 inline shared_ptr<Hittable> box(const point4& a, const point4& b, shared_ptr<Material> mat)

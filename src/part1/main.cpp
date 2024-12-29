@@ -25,6 +25,9 @@ void set_camera_settings(Camera& cam) {
 
 void part1full() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto material_ground = make_shared<Lambertian>(Color(0.8, 0.8, 0.0));
     auto material_center = make_shared<Lambertian>(Color(0.1, 0.2, 0.5));
@@ -52,12 +55,15 @@ void part1full() {
     // depth of field effect
     cam.defocus_angle = 10.0;
     cam.focus_dist = 3.4;
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 // 14. Final Render
 void bouncing_spheres() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     // auto ground_material = make_shared<Lambertian>(Color(0.5, 0.5, 0.5));
     auto checker = make_shared<CheckeredTexture>(0.32, Color(.2,.3,.1), Color(.9,.9,.9));
@@ -118,11 +124,14 @@ void bouncing_spheres() {
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void checkered_spheres() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto checker = make_shared<CheckeredTexture>(0.32, Color(.2, .3, .1), Color(.9, .9, .9));
 
@@ -141,11 +150,14 @@ void checkered_spheres() {
     cam.vup      = vec4(0,1,0);
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void debug_spheres() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto R = std::cos(pi/4);
 
@@ -173,13 +185,16 @@ void debug_spheres() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void earth() {
     auto earth_texture = make_shared<ImageTexture>("src/earthmap.jpg");
     auto earth_surface = make_shared<Lambertian>(earth_texture);
     auto globe = make_shared<Sphere>(point4(0,0,0), 2, earth_surface);
+    auto empty_mat = shared_ptr<Material>();
+    Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     Camera cam;
     // set_camera_settings(cam);
@@ -193,11 +208,14 @@ void earth() {
     cam.lookat   = point4(0,0,0);
     cam.vup      = vec4(0,1,0);
     cam.defocus_angle = 0;
-    cam.render(HittableList(globe));
+    cam.render(HittableList(globe), lights);
 }
 
 void perlin_spheres() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto perlin_texture = make_shared<NoiseTexture>(4);
     world.add(make_shared<Sphere>(point4(0,-1000,0), 1000, make_shared<Lambertian>(perlin_texture)));
@@ -205,11 +223,14 @@ void perlin_spheres() {
 
     Camera cam;
     set_camera_settings(cam);
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void quads() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     // Materials
     auto left_red     = make_shared<Lambertian>(Color(1.0, 0.2, 0.2));
@@ -240,11 +261,14 @@ void quads() {
     cam.defocus_angle = 0;
     cam.background = Color(0.70, 0.80, 1.00);
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void simple_light() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto pertext = make_shared<NoiseTexture>(4);
     world.add(make_shared<Sphere>(point4(0,-1000,0), 1000, make_shared<Lambertian>(pertext)));
@@ -268,7 +292,7 @@ void simple_light() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void cornell_box() {
@@ -286,24 +310,33 @@ void cornell_box() {
     world.add(make_shared<Quad>(point4(555,555,555), vec4(-555,0,0), vec4(0,0,-555), white));
     world.add(make_shared<Quad>(point4(0,0,555), vec4(555,0,0), vec4(0,555,0), white));
 
+    shared_ptr<Material> aluminum = make_shared<Metal>(Color(0.8, 0.85, 0.88), 0.0);
     shared_ptr<Hittable> box1 = box(point4(0,0,0), point4(165,330,165), white);
     box1 = make_shared<Rotate_y>(box1, 15);
     box1 = make_shared<Translate>(box1, vec4(265,0,295));
     world.add(box1);
 
     // shared_ptr<Hittable> box2 = box(point4(0,0,0), point4(165,165,165), white);
-    shared_ptr<Hittable> box2 = make_shared<Sphere>(point4(85,85,85), 50, white);
-    box2 = make_shared<Rotate_y>(box2, -18);
-    box2 = make_shared<Translate>(box2, vec4(130,0,65));
-    world.add(box2);
+    // // shared_ptr<Hittable> box2 = make_shared<Sphere>(point4(85,85,85), 50, white);
+    // box2 = make_shared<Rotate_y>(box2, -18);
+    // box2 = make_shared<Translate>(box2, vec4(130,0,65));
+    // world.add(box2);
 
+    auto glass = make_shared<Dielectric>(1.5);
+    world.add(make_shared<Sphere>(point4(190,90,190), 90, glass));
+
+    auto empty_mat = shared_ptr<Material>();
+    
+    HittableList lights;
+    lights.add(make_shared<Quad>(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat));
+    lights.add(make_shared<Sphere>(point4(190, 90, 190), 90, empty_mat));
     world = HittableList(make_shared<BVH_node>(world));
 
     Camera cam;
 
     cam.aspect_ratio      = 1.0;
     cam.image_width       = 600;
-    cam.samples_per_pixel = 200;
+    cam.samples_per_pixel = 100;
     cam.max_depth         = 50;
     cam.background        = Color(0,0,0);
 
@@ -314,11 +347,14 @@ void cornell_box() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void cornell_smoke() {
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     auto red   = make_shared<Lambertian>(Color(.65, .05, .05));
     auto white = make_shared<Lambertian>(Color(.73, .73, .73));
@@ -358,7 +394,7 @@ void cornell_smoke() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 void final_scene(int image_width, int samples_per_pixel, int max_depth) {
@@ -381,6 +417,9 @@ void final_scene(int image_width, int samples_per_pixel, int max_depth) {
     }
 
     HittableList world;
+auto empty_mat = shared_ptr<Material>();
+Quad lights(point4(343,554,332), vec4(-130,0,0), vec4(0,0,-105), empty_mat);
+
 
     world.add(make_shared<BVH_node>(boxes1));
 
@@ -437,11 +476,11 @@ void final_scene(int image_width, int samples_per_pixel, int max_depth) {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, lights);
 }
 
 int main() {
-    int select = 9;
+    int select = 7;
     switch(select) {
         case 1:
             bouncing_spheres();

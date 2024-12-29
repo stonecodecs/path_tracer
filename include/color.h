@@ -19,6 +19,11 @@ void write_color(std::ostream& out, const Color& pixel_color) {
     auto b = pixel_color.z();
     // auto a = pixel_color.w();
 
+    // replace NaN with 0 (NaN != NaN) to get rid of shadow acne
+    if (r != r) r = 0.0;
+    if (g != g) g = 0.0;
+    if (b != b) b = 0.0;
+
     r = linear_to_gamma(r);
     g = linear_to_gamma(g);
     b = linear_to_gamma(b);
